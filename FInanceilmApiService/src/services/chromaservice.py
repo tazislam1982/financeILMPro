@@ -44,7 +44,7 @@ class ChromaService:
         # OpenAI API key (supports either OPENAI_API_KEY or ALIM_API_KEY)
         openai_key = os.getenv("OPENAI_API_KEY") or os.getenv("ALIM_API_KEY")
         if not openai_key:
-            logservice.logging.error("chromaservice.py: Missing OPENAI_API_KEY/ALIM_API_KEY.")
+            logservice.logging.error("chromaservice.py: Missing OPENAI_API_KEY.")
             raise RuntimeError("Missing OPENAI_API_KEY/ALIM_API_KEY.")
         self._openai = OpenAI(api_key=openai_key)
 
@@ -237,5 +237,8 @@ class ChromaService:
         )
         text_l = [t for (t, _dist, _meta) in results]
         scores = [dist for (_t, dist, _m) in results]
+        metadata =  [meta for (_t, _dist, meta) in results]
         link_extracted: Dict[str, Any] = {}
+        print("#########################################")
+        print(f"Metadata: {metadata}")
         return text_l, link_extracted, scores

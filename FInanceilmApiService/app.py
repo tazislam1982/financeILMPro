@@ -71,10 +71,6 @@ chatIlm = FinanceILM()
 # =========================
 # Routes
 # =========================
-@app.get("/", dependencies=[Depends(require_bearer_token)])
-async def home():
-    """Simple health endpoint (protected)."""
-    return {"status": "ok", "service": "FinanceILM API"}
 
 @app.post("/api/v1/context-in-usage", dependencies=[Depends(require_bearer_token)])
 async def completionWithContextInUsage(data: QuestionInput):
@@ -90,7 +86,7 @@ async def completionWithContextInUsage(data: QuestionInput):
             file.write(context[0])
     except Exception as e:
         logging.error(f"Error retrieving context from Chromadb: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Internal server error: Error retrieving context")
 
     def parse_stream(stream):
         for chunk in stream:
@@ -123,7 +119,7 @@ async def healthz():
 # (optional) add a friendly public landing page
 @app.get("/public")
 async def public_root():
-    return {"status": "ok", "service": "FinanceILM API"}
+    return {"status": "ok", "service": "FinanceILM API Version 1.0.0"}
 
 # keep this protected root (requires Authorization: Bearer <token>)
 @app.get("/", dependencies=[Depends(require_bearer_token)])

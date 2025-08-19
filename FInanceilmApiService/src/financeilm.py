@@ -108,63 +108,90 @@ class FinanceILM():
         
                 
 
-    def rephrase_query(self, data_input, question, flag=0):
+    def rephrase_query(self, data_input, question, flag: int = 0) -> str:
         """
-        Rephrases a follow-up question into a standalone question using an AI model.
+        Rephrases a follow-up question into a standalone question for FinanceILM.
 
         Args:
-            data_input (dict): The conversation history data.
-            question (str): The recent question to be rephrased.
-            flag (int, optional): An optional flag parameter. Defaults to 0.
+            data_input (dict): Conversation history data.
+            question (str): The recent user question to be rephrased.
+            flag (int, optional): Reserved/unused flag. Defaults to 0.
 
         Returns:
             str: The rephrased standalone question, or an empty string if an error occurs.
         """
         try:
-            previous_query_str = self.format_last_queries(data_input)
+            previous_query_str = self.format_last_queries(data_input) or ""
             logservice.logging.debug("Formatted previous conversations successfully.")
 
+            # Domain-focused, strict output, no hallucinations
             prompt_rephrase = (
-                "You are a query rephrasing assistant that rephrases follow-up questions into standalone questions "
-                "that can be searched independently of the conversation. Analyze the chat history carefully to create a "
-                "comprehensive and clear standalone question, avoiding vague references like 'it', 'that', etc.\n\n"
-                "Examples:\n"
-                "--------\n"
-                "User: What is Islam?\n"
-                "AI: Islam is the religion of truth that all people are required to accept. It does not force people to "
-                "follow it, but all people living under its rule in the Islamic State are required to obey its authority. "
-                "Non-Muslims in the Islamic State are not allowed to spread their false beliefs. However, Islam guarantees "
-                "freedom of creed, allowing non-Muslim residents to remain on their religion as long as they are committed "
-                "to their covenant with Muslims. Islam is a religion of truth and mercy, and Muslims are encouraged to "
-                "invite others to Islam and spread its teachings. Islam provides guidance and mercy for all of humanity.\n"
-                "Follow-up Input: Tell me more about it?\n\n"
-                "REPHRASED Query: Tell me more about Islam.\n"
-                "--------\n"
+                "You are a FinanceILM assistant that REPHRASES follow-up questions into a single, "
+                "clear, standalone question specifically about ISLAMIC FINANCE topics (e.g., Shariah-compliant "
+                "products, contracts, screens, regulatory/compliance rules, AAOIFI/IFSB guidance, local "
+                "jurisdictional regulations, sukuk, takaful, murabaha, ijara, mudaraba, musharaka, etc.).\n\n"
+                "Requirements:\n"
+                "- Do NOT add new facts. Do NOT infer details that aren't present.\n"
+                "- Resolve pronouns like 'it/that/this' using the chat history when possible.\n"
+                "- Keep any mentioned entity names, instruments, jurisdictions, dates, currencies, and thresholds.\n"
+                "- Prefer neutral, compliance-aware phrasing. If the follow-up is ambiguous, keep it conservative but standalone.\n"
+                "- Output ONLY the rephrased question text. No labels, no quotes, no explanations.\n\n"
+                "Examples (illustrative):\n"
+                "User context: 'Compare murabaha vs ijara for asset financing in KSA.'\n"
+                "Follow-up: 'Which one fits leasing better?'\n"
+                "Rephrased: 'Which contract fits leasing better in Saudi Arabia, murabaha or ijara?'\n"
+                "----\n"
+                "User context: 'AAOIFI screening ratios for equities.'\n"
+                "Follow-up: 'What about thresholds for cash and receivables?'\n"
+                "Rephrased: 'What are the AAOIFI equity screening thresholds for cash and receivables?'\n"
+                "----\n"
+                "User context: 'Takaful vs conventional insurance regulatory differences in Malaysia.'\n"
+                "Follow-up: 'And disclosures?'\n"
+                "Rephrased: 'What disclosure requirements differentiate takaful from conventional insurance in Malaysia?'\n"
             )
 
             response = openaiservice.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": prompt_rephrase},
-                    {"role": "user", "content": f"Previous Conversations: {previous_query_str}"},
-                    {"role": "user", "content": f"Recent Query: {question}"}
+                    {"role": "user", "content": f"Chat history:\n{previous_query_str}"},
+                    {"role": "user", "content": f"Follow-up to rephrase:\n{question}\n\nReturn ONLY the standalone question."},
                 ],
-                max_tokens=150,
-                temperature=0.001,
+                max_tokens=80,
+                temperature=0.0,
             )
 
-            rephrased_query = response.choices[0].message.content.strip()
+            # Defensive parsing
+            content = ""
+            if hasattr(response, "choices") and response.choices:
+                msg = getattr(response.choices[0], "message", None)
+                if msg and hasattr(msg, "content") and msg.content:
+                    content = msg.content.strip()
+
+            if not content:
+                # If the model returned nothing, keep behavior predictable
+                logservice.logging.warning("Empty content received for rephrased query; returning empty string.")
+                return ""
+
+            # Strip any accidental prefixes the model might add
+            cleaned = (
+                content.replace("Rephrased:", "")
+                    .replace("REPHRASED:", "")
+                    .replace("Rephrased Query:", "")
+                    .replace("Standalone Query:", "")
+                    .strip(" \n:‘’\"")
+                    .strip()
+            )
+
             logservice.logging.info("Received rephrased query successfully.")
+            print("REPHRASED Query:", cleaned)  # Optional: keep for local debugging
 
-            # Corrected print statement to display the rephrased query
-            print("REPHRASED Query:", rephrased_query)
-
-            # Clean up the rephrased query if it contains any prefixes
-            return rephrased_query.replace("Rephrased Query:", "").replace("Standalone Query:", "").strip()
+            return cleaned
 
         except Exception as e:
             logservice.logging.error("An error occurred while rephrasing the query: %s", e)
             return ""
+
 
 
 
